@@ -42,6 +42,7 @@ print(json.dumps(d))
 
 # the url to query PyPI for project versions
 BASE_PYPI_URL = 'https://pypi.python.org/pypi/{name}/json'
+BASE_PYPI_URL_WITH_VERSION = 'https://pypi.python.org/pypi/{name}/{version}/json'
 
 # prefix for all stdout lines when running a command
 STDOUT_LOG_PREFIX = ":: "
@@ -212,9 +213,14 @@ def check_pypi_updates(dependencies):
     return dependencies
 
 
-def _pypi_head_package(pkg_name):
+def _pypi_head_package(dependency):
     """Hit pypi with a http HEAD to check if pkg_name exists."""
-    url = BASE_PYPI_URL.format(name=pkg_name)
+    if dependency.specs:
+        _, version = dependency.specs[0]
+        url = BASE_PYPI_URL_WITH_VERSION.format(name=dependency.project_name, version=version)
+    else:
+        url = BASE_PYPI_URL.format(name=dependency.project_name)
+    logger.debug("Doing HEAD requests agains %s", url)
     req = request.Request(url, method='HEAD')
     try:
         response = request.urlopen(req)
@@ -224,7 +230,7 @@ def _pypi_head_package(pkg_name):
         else:
             raise http_error
     if response.status == HTTP_STATUS_OK:
-        logger.debug("%s exists in Pypi.", pkg_name)
+        logger.debug("%r exists in Pypi.", dependency)
         return True
 
 
@@ -233,7 +239,7 @@ def check_pypi_exists(dependencies):
     for dependency in dependencies.get('pypi', []):
         logger.debug("Checking if %r exists in PyPi", dependency)
         try:
-            exists = _pypi_head_package(dependency.project_name)
+            exists = _pypi_head_package(dependency)
         except Exception as error:
             logger.error("Error checking %s in pypi: %r", dependency, error)
             sys.exit(1)
